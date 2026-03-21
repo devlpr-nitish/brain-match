@@ -1,0 +1,141 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─── Light Mode CSS Variables ─── */
+:root {
+  --bg: #FFF6C0;
+  --panel: #ffffff;
+  --surface: #f9f6e8;
+  --border: #d9c89a;
+  --input-bg: #fdfbf0;
+  --cyan: #0077cc;
+  --pink: #9333ea;
+  --yellow: #b45309;
+  --green: #16a34a;
+  --purple: #7c3aed;
+  --orange: #ea580c;
+  --text: #1a1429;
+  --muted: #78716c;
+  --glow-cyan: none;
+  --glow-pink: none;
+  --glow-green: none;
+  --grid-color: rgba(0,119,204,0.04);
+
+  /* shadcn tokens */
+  --background: #FFF6C0;
+  --foreground: #1a1429;
+  --card: #ffffff;
+  --card-foreground: #1a1429;
+  --popover: #ffffff;
+  --popover-foreground: #1a1429;
+  --primary: #0077cc;
+  --primary-foreground: #ffffff;
+  --secondary: #f0edd5;
+  --secondary-foreground: #1a1429;
+  --muted-foreground: #78716c;
+  --accent: #f9f6e8;
+  --accent-foreground: #1a1429;
+  --destructive: #dc2626;
+  --input: #fdfbf0;
+  --ring: #0077cc;
+  --border: #d9c89a;
+  --radius: 0.75rem;
+}
+
+/* ─── Dark Mode CSS Variables ─── */
+html.dark {
+  --bg: #000000;
+  --panel: #111111;
+  --surface: #0f0f0f;
+  --border: #1e1e1e;
+  --input-bg: #111111;
+  --cyan: #00e5ff;
+  --pink: #ff4dff;
+  --yellow: #ffd700;
+  --green: #00ff9d;
+  --purple: #b16bff;
+  --orange: #ff6b2b;
+  --text: #f0f0f0;
+  --muted: #7a7a8c;
+  --glow-cyan: 0 0 20px rgba(0,229,255,0.35), 0 0 40px rgba(0,229,255,0.15);
+  --glow-pink: 0 0 20px rgba(255,77,255,0.35), 0 0 40px rgba(255,77,255,0.15);
+  --glow-green: 0 0 20px rgba(0,255,157,0.35), 0 0 40px rgba(0,255,157,0.15);
+  --grid-color: rgba(0,229,255,0.025);
+
+  --background: #000000;
+  --foreground: #f0f0f0;
+  --card: #111111;
+  --card-foreground: #f0f0f0;
+  --popover: #111111;
+  --popover-foreground: #f0f0f0;
+  --primary: #00e5ff;
+  --primary-foreground: #000000;
+  --secondary: #1a1a1a;
+  --secondary-foreground: #f0f0f0;
+  --accent: #1e1e1e;
+  --accent-foreground: #f0f0f0;
+  --input: #1a1a1a;
+  --ring: #00e5ff;
+}
+
+/* ─── Reset ─── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { background: var(--bg); color: var(--text); min-height: 100%; }
+
+/* ─── Keyframe Animations ─── */
+@keyframes neon-flicker {
+  0%, 96%, 100% { opacity: 1; }
+  97% { opacity: 0.7; }
+  98% { opacity: 0.95; }
+  99% { opacity: 0.6; }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes bar-pulse {
+  0%, 100% { box-shadow: 0 0 8px var(--cyan); }
+  50%       { box-shadow: 0 0 20px var(--cyan); }
+}
+@keyframes winner-glow {
+  0%, 100% { text-shadow: 0 0 20px var(--yellow), 0 0 40px var(--yellow); }
+  50%       { text-shadow: 0 0 40px var(--yellow), 0 0 80px rgba(255,215,0,.5); }
+}
+@keyframes spin-pulse {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── Animation Utilities ─── */
+.anim-slide-up   { animation: slide-up 0.4s ease forwards; }
+.anim-float      { animation: float 3s ease-in-out infinite; }
+.anim-flicker    { animation: neon-flicker 6s infinite; }
+.anim-pulse      { animation: pulse-glow 1.5s infinite; }
+.anim-winner     { animation: winner-glow 2s infinite; }
+.anim-bar-pulse  { animation: bar-pulse 2s infinite; }
+
+/* ─── Scanline overlay (dark only, pseudo-element) ─── */
+html.dark .mindmatch-app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,229,255,0.012) 2px,
+    rgba(0,229,255,0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
