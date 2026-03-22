@@ -11,8 +11,12 @@ export type ChatMessage = {
   label?: string;
 };
 
-export type Scores = Record<Role, number>;
+export type WrongGuesses = Record<Role, number>;
 export type Names = Record<Role, string>;
+
+// "take_turn"  = it's your turn: you can ask for hint or guess
+// "give_hint"  = opponent asked for hint, you must provide one
+export type TurnMode = "take_turn" | "give_hint";
 
 export type CategoryKey = "numbers" | "objects" | "person" | "movie";
 
@@ -25,6 +29,7 @@ export type PlayerSnapshot = {
 export type ClientGameEvent =
   | { type: "categoryChosen"; payload: { category: CategoryKey } }
   | { type: "secretReady"; payload: { secret: string } }
+  | { type: "gameStart" }
   | { type: "requestHint"; payload: { text: string; requester: Role } }
   | { type: "hint"; payload: { text: string; label: string; player: Role; requester: Role } }
   | { type: "guess"; payload: { text: string; player: Role } }
@@ -34,9 +39,10 @@ export type ClientGameEvent =
         correct: boolean;
         player: Role;
         secret: string;
-        points: number;
+        wrongGuesses: WrongGuesses;
       };
     }
+  | { type: "revealSecret"; payload: { secret: string; player: Role } }
   | { type: "roundNext" }
   | { type: "ping" };
 
@@ -65,6 +71,7 @@ export type GameChannelMessage =
   | { type: "hostInfo"; name: string }
   | { type: "categoryChosen"; category: CategoryKey }
   | { type: "secretReady"; secret: string }
+  | { type: "gameStart" }
   | { type: "hint"; text: string; label: string; player: Role }
   | { type: "guess"; text: string; player: Role }
   | {
@@ -72,7 +79,7 @@ export type GameChannelMessage =
       correct: boolean;
       player: Role;
       secret: string;
-      points: number;
+      wrongGuesses: WrongGuesses;
     }
   | { type: "roundNext" }
   | { type: "leave" };

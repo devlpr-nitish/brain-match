@@ -1,6 +1,7 @@
 "use client";
 
 import type { Dispatch, SetStateAction } from "react";
+import Image from "next/image";
 import { Brain, Swords, Hash, Box, Star, Film, ArrowRight, Zap, Shield, Trophy } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -41,18 +42,18 @@ export function NameScreen({ nameInput, setNameInput, onContinue, isJoining }: N
       <div className="relative z-10 min-h-screen flex flex-col md:flex-row">
 
         {/* ── LEFT: Hero ── */}
-        <div
-          className="flex-1 flex flex-col justify-center py-16 md:border-r border-[var(--border)]"
-          style={{ padding: "4rem 2rem 4rem 4rem" }}
-        >
-          <div className="flex flex-col gap-7" style={{ maxWidth: "420px" }}>
+        <div className="flex-1 flex flex-col justify-center py-16 px-8 md:px-12 lg:px-16 md:border-r border-[var(--border)]">
+          <div className="flex flex-col gap-7 w-full max-w-[420px]">
 
             {/* Logo block */}
             <div className="flex flex-row items-center gap-4">
-              <Brain
-                size={44}
-                className="text-[var(--cyan)] shrink-0"
-                style={{ filter: "drop-shadow(0 0 8px rgba(0,229,255,0.3))" }}
+              <Image
+                src="/logo.png"
+                alt="Brain Match Logo"
+                width={56}
+                height={56}
+                className="shrink-0 rounded-[14px]"
+                style={{ filter: "drop-shadow(0 0 12px rgba(0,229,255,0.4))" }}
               />
               <div
                 className="font-[var(--font-bebas-neue)] leading-none tracking-widest text-[var(--cyan)]"
@@ -98,11 +99,8 @@ export function NameScreen({ nameInput, setNameInput, onContinue, isJoining }: N
         </div>
 
         {/* ── RIGHT: Form ── */}
-        <div
-          className="flex-1 flex flex-col justify-center bg-white dark:bg-[#060606]"
-          style={{ padding: "4rem" }}
-        >
-          <div className="flex flex-col gap-6" style={{ maxWidth: "320px", margin: "0 auto" }}>
+        <div className="flex-1 flex flex-col justify-center bg-white dark:bg-[#060606] px-8 py-12 md:px-12 lg:px-16">
+          <div className="flex flex-col gap-6 mx-auto w-full max-w-[320px]">
 
             {/* Form heading */}
             <div>

@@ -6,34 +6,33 @@ import { GameArena } from "@/components/mindmatch/GameArena";
 import { SecretPick } from "@/components/mindmatch/SecretPick";
 import { WaitingRoom } from "@/components/mindmatch/WaitingRoom";
 import { WinScreen } from "@/components/mindmatch/WinScreen";
-import type { CategoryKey, ChatMessage, Names, Role, Screen, Scores } from "@/app/types/types";
+import type { CategoryKey, ChatMessage, Names, Role, TurnMode, WrongGuesses } from "@/app/types/types";
 
 type GameFlowContainerProps = {
-  screen: Screen;
+  screen: string;
   roomCode: string;
   names: Names;
   myRole: Role;
   myName: string;
-  scores: Scores;
+  winnerRole: Role | null;
+  wrongGuesses: WrongGuesses;
   round: number;
   myCategory: CategoryKey | "";
   mySecret: string;
+  opponentSecret: string;
   secretInput: string;
   setSecretInput: Dispatch<SetStateAction<string>>;
-  myMaxHints: number;
-  myHintsLeft: number;
+  iConfirmed: boolean;
+  opponentConfirmed: boolean;
+  hintCounts: Record<Role, number>;
   chatMessages: ChatMessage[];
   messageInput: string;
   setMessageInput: (value: string) => void;
-  timerSeconds: number;
   activeRole: Role;
-  turnMode: "ask_or_guess" | "provide_hint" | "guess_after_hint";
-  iReady: boolean;
-  showConfetti?: boolean;
-  canSendHint: boolean;
+  turnMode: TurnMode;
   onPickCategory: (category: CategoryKey) => void;
   onConfirmSecret: () => void;
-  onSetMaxHints: (count: number) => void;
+  onStartGame: () => void;
   onSendHint: () => void;
   onSendGuess: () => void;
   onPlayAgain: () => void;
@@ -42,38 +41,26 @@ type GameFlowContainerProps = {
 };
 
 export function GameFlowContainer({
-  screen,
-  roomCode,
-  names,
-  myRole,
-  myName,
-  scores,
-  round,
-  myCategory,
-  mySecret,
-  secretInput,
-  setSecretInput,
-  myMaxHints,
-  myHintsLeft,
-  chatMessages,
-  messageInput,
-  setMessageInput,
-  timerSeconds,
-  activeRole,
-  turnMode,
-  iReady,
-  canSendHint,
-  onPickCategory,
-  onConfirmSecret,
-  onSetMaxHints,
-  onSendHint,
-  onSendGuess,
-  onPlayAgain,
-  onGoHome,
-  onBack,
+  screen, roomCode, names, myRole, myName, winnerRole, wrongGuesses, round,
+  myCategory, mySecret, opponentSecret, secretInput, setSecretInput,
+  iConfirmed, opponentConfirmed, hintCounts,
+  chatMessages, messageInput, setMessageInput,
+  activeRole, turnMode,
+  onPickCategory, onConfirmSecret, onStartGame,
+  onSendHint, onSendGuess, onPlayAgain, onGoHome, onBack,
 }: GameFlowContainerProps) {
+  const isOwner = myRole === "P1";
   const waitingSlot1Name = names.P1 || (myRole === "P1" ? myName : "Waiting...");
   const waitingSlot2Name = names.P2 || (myRole === "P2" ? myName : "Waiting...");
+
+  const secretHint = myCategory
+    ? ({
+        numbers: "Pick any number between 1 and 1,000",
+        objects: "Type any object or word",
+        person: "Name a famous person (real or fictional)",
+        movie: "Name a movie, show, or series",
+      }[myCategory] ?? "Enter your secret")
+    : "Enter your secret";
 
   return (
     <>
@@ -89,23 +76,24 @@ export function GameFlowContainer({
       ) : null}
 
       {screen === "category" ? (
-        <CategoryPick selectedCategory={myCategory} waitingForOpponent={iReady} onPick={onPickCategory} />
+        <CategoryPick
+          selectedCategory={myCategory}
+          waitingForOpponent={iConfirmed}
+          isOwner={isOwner}
+          onPick={onPickCategory}
+        />
       ) : null}
 
       {screen === "secret" ? (
         <SecretPick
-          secretHint={myCategory ? ({
-            numbers: "Pick any number between 1 and 1,000",
-            objects: "Type any object or word",
-            person: "Name a famous person (real or fictional)",
-            movie: "Name a movie, show, or series",
-          }[myCategory] ?? "Enter your secret") : "Enter your secret"}
+          secretHint={secretHint}
           secretInput={secretInput}
           setSecretInput={setSecretInput}
-          myMaxHints={myMaxHints}
-          waitingForOpponent={iReady}
-          onSetHints={onSetMaxHints}
+          iConfirmed={iConfirmed}
+          opponentConfirmed={opponentConfirmed}
+          isOwner={isOwner}
           onConfirmSecret={onConfirmSecret}
+          onStartGame={onStartGame}
         />
       ) : null}
 
@@ -113,17 +101,15 @@ export function GameFlowContainer({
         <GameArena
           myRole={myRole}
           names={names}
-          scores={scores}
+          wrongGuesses={wrongGuesses}
           round={round}
           mySecret={mySecret}
-          myHintsLeft={myHintsLeft}
+          hintCounts={hintCounts}
           chatMessages={chatMessages}
           messageInput={messageInput}
           setMessageInput={setMessageInput}
-          timerSeconds={timerSeconds}
           activeRole={activeRole}
           turnMode={turnMode}
-          canSendHint={canSendHint}
           onSendHint={onSendHint}
           onSendGuess={onSendGuess}
         />
@@ -134,7 +120,12 @@ export function GameFlowContainer({
           myRole={myRole}
           myName={myName}
           names={names}
-          scores={scores}
+          wrongGuesses={wrongGuesses}
+          mySecret={mySecret}
+          opponentSecret={opponentSecret}
+          category={myCategory}
+          isOwner={isOwner}
+          winnerRole={winnerRole}
           onPlayAgain={onPlayAgain}
           onGoHome={onGoHome}
         />

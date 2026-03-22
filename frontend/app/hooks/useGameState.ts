@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import type { CategoryKey, ChatMessage, Names, Role, Scores } from "../types/types";
+import { useCallback, useRef, useState } from "react";
+import type { CategoryKey, ChatMessage, Names, Role, TurnMode, WrongGuesses } from "../types/types";
 
 export function useGameState() {
   // Room flow inputs
@@ -10,25 +10,33 @@ export function useGameState() {
   const [myName, setMyName] = useState("");
   const [myRole, setMyRole] = useState<Role>("P1");
 
+  // Ref mirror of myRole — always up-to-date even inside stale WS closures
+  const myRoleRef = useRef<Role>("P1");
+  const setMyRoleSync = useCallback((role: Role) => {
+    myRoleRef.current = role;
+    setMyRole(role);
+  }, []);
+
   const [names, setNames] = useState<Names>({ P1: "", P2: "" });
-  const [scores, setScores] = useState<Scores>({ P1: 0, P2: 0 });
+  const [wrongGuesses, setWrongGuesses] = useState<WrongGuesses>({ P1: 0, P2: 0 });
   const [round, setRound] = useState(1);
+  const [winnerRole, setWinnerRole] = useState<Role | null>(null);
 
   const [myCategory, setMyCategory] = useState<CategoryKey | "">("");
   const [mySecret, setMySecret] = useState("");
+  const [opponentSecret, setOpponentSecret] = useState(""); // revealed at end
   const [secretInput, setSecretInput] = useState("");
-  const [myMaxHints, setMyMaxHints] = useState(5);
-  const [myHintsLeft, setMyHintsLeft] = useState(5);
-  const [hintCount, setHintCount] = useState(0);
 
   const [iReady, setIReady] = useState(false);
   const [opponentReady, setOpponentReady] = useState(false);
+  // Track hint count per player for arena display
+  const [hintCounts, setHintCounts] = useState<Record<Role, number>>({ P1: 0, P2: 0 });
 
   const [messageInput, setMessageInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [askerRole, setAskerRole] = useState<Role>("P1");
   const [activeRole, setActiveRole] = useState<Role>("P1");
-  const [turnMode, setTurnMode] = useState<"ask_or_guess" | "provide_hint" | "guess_after_hint">("ask_or_guess");
+  const [turnMode, setTurnMode] = useState<TurnMode>("take_turn");
 
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -38,18 +46,19 @@ export function useGameState() {
     setOpponentReady(false);
     setMyCategory("");
     setMySecret("");
+    setOpponentSecret("");
+    setWinnerRole(null);
     setSecretInput("");
     setMessageInput("");
-    setMyHintsLeft(myMaxHints);
-    setHintCount(0);
+    setHintCounts({ P1: 0, P2: 0 });
     setChatMessages([]);
     setAskerRole("P1");
     setActiveRole("P1");
-    setTurnMode("ask_or_guess");
-  }, [myMaxHints]);
+    setTurnMode("take_turn");
+  }, []);
 
   const resetGameState = useCallback(() => {
-    setScores({ P1: 0, P2: 0 });
+    setWrongGuesses({ P1: 0, P2: 0 });
     setRound(1);
     setRoomCode("");
     setMyName("");
@@ -70,37 +79,38 @@ export function useGameState() {
     myName,
     setMyName,
     myRole,
-    setMyRole,
+    myRoleRef,
+    setMyRole: setMyRoleSync,
 
     // Player info
     names,
     setNames,
-    scores,
-    setScores,
+    wrongGuesses,
+    setWrongGuesses,
     round,
     setRound,
+    winnerRole,
+    setWinnerRole,
 
     // Game setup
     myCategory,
     setMyCategory,
     mySecret,
     setMySecret,
+    opponentSecret,
+    setOpponentSecret,
     secretInput,
     setSecretInput,
-    myMaxHints,
-    setMyMaxHints,
-    myHintsLeft,
-    setMyHintsLeft,
-    hintCount,
-    setHintCount,
 
-    // Turn tracking
+    // Sync flags
     iReady,
     setIReady,
     opponentReady,
     setOpponentReady,
 
-    // Chat & Messages
+    // Arena
+    hintCounts,
+    setHintCounts,
     messageInput,
     setMessageInput,
     chatMessages,

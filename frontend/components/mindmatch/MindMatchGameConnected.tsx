@@ -4,14 +4,14 @@ import { useCallback, useEffect, useRef } from "react";
 import { ThemeToggle } from "./ThemeToggle";
 import { GameFlowContainer } from "@/app/containers/GameFlowContainer";
 import { RoomFlowContainer } from "@/app/containers/RoomFlowContainer";
-import { useGameState, useScreenNavigation, useTimer, useToast, useWebSocketConnection } from "@/app/hooks";
-import type { CategoryKey, ClientGameEvent, Role } from "@/app/types";
+import { useGameState, useScreenNavigation, useToast, useWebSocketConnection } from "@/app/hooks";
+import type { CategoryKey, ClientGameEvent, Role, WrongGuesses } from "@/app/types";
 
 function generateCode() {
   return Math.random().toString(36).slice(2, 6).toUpperCase();
 }
 
-function normalizeGuessText(value: string): string {
+function normalizeText(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/g, "").trim();
 }
 
@@ -19,15 +19,17 @@ export function MindMatchGameConnected() {
   const { screen, setScreen, screenRef } = useScreenNavigation("name");
   const gameState = useGameState();
   const { toastMessage, toastVisible, toast } = useToast();
-  const { clearTimer, startTimer } = useTimer();
   const { closeSocket, sendEvent, connectSocket } = useWebSocketConnection();
 
+  const gameStateRef = useRef(gameState);
+  useEffect(() => {
+    gameStateRef.current = gameState;
+  }, [gameState]);
+
   const chatIdRef = useRef(1);
-  const checkingRef = useRef(false);
   const autoStartScheduledRef = useRef(false);
-  const urlRoomCodeRef = useRef("");
-  const checkGuessRef = useRef<((guess: string, secret: string, role: Role) => void) | null>(null);
-  const handleRoundResultRef = useRef<((role: Role, points: number, secret: string) => void) | null>(null);
+  // Ref-based callbacks to avoid stale closures inside WS handlers
+  const handleRoundResultRef = useRef<((winnerRole: Role, opponentSec: string, wg: WrongGuesses) => void) | null>(null);
   const startCategoryPickRef = useRef<(() => void) | null>(null);
 
   // Detect URL room code
@@ -35,159 +37,172 @@ export function MindMatchGameConnected() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get("room");
-    if (roomParam) {
-      urlRoomCodeRef.current = roomParam.toUpperCase();
-    }
-  }, []);
+    if (roomParam) gameState.setRoomCode(roomParam.toUpperCase());
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const appendMessage = useCallback((text: string, type: "hint" | "guess" | "system" | "correct", label?: string) => {
-    gameState.setChatMessages((previous) => [
-      ...previous,
-      {
-        id: chatIdRef.current++,
-        text,
-        type,
-        label,
-      },
+    gameStateRef.current.setChatMessages((prev) => [
+      ...prev,
+      { id: chatIdRef.current++, text, type, label },
     ]);
-  }, [gameState]);
+  }, []);
 
+  // ─── Game event handler (called from WS closure — use refs for callbacks) ───
   const handleGameEvent = useCallback(
     (event: ClientGameEvent) => {
+      const state = gameStateRef.current;
       switch (event.type) {
+
+        // ── Category phase ──────────────────────────────────────────────────
         case "categoryChosen":
-          gameState.setOpponentReady(true);
+          // Received only by P2. Adopt category + mark both ready.
+          state.setMyCategory(event.payload.category);
+          state.setIReady(true);
+          state.setOpponentReady(true);
           break;
+
+        // ── Secret phase ─────────────────────────────────────────────────────
         case "secretReady":
-          gameState.setOpponentReady(true);
+          // Opponent locked in their secret
+          state.setOpponentReady(true);
           break;
-        case "requestHint":
-          appendMessage(
-            event.payload.text || "Can I get a hint?",
-            "system",
-            `${gameState.names[event.payload.requester] || event.payload.requester} • Asked for hint`,
-          );
-          gameState.setAskerRole(event.payload.requester);
-          gameState.setActiveRole(event.payload.requester === "P1" ? "P2" : "P1");
-          gameState.setTurnMode("provide_hint");
+
+        case "gameStart":
+          // Owner started the game — P2 navigates to arena
+          setScreen("arena");
+          appendMessage("Game started! P1 goes first.", "system");
           break;
-        case "hint":
-          appendMessage(
-            event.payload.text,
-            "hint",
-            `${gameState.names[event.payload.player] || event.payload.player} • ${event.payload.label}`,
-          );
-          startTimer((remaining) => gameState.setTimerSeconds(remaining), 30);
-          gameState.setAskerRole(event.payload.requester);
-          gameState.setActiveRole(event.payload.requester);
-          gameState.setTurnMode("guess_after_hint");
+
+        // ── Arena: hint flow ─────────────────────────────────────────────────
+        case "requestHint": {
+          // Requester asked for a hint → I must give one
+          const { requester } = event.payload;
+          const requesterName = state.names[requester] || requester;
+          appendMessage(event.payload.text || "Can I get a hint?", "system", `${requesterName} • Asked for hint`);
+          // The one responsible for giving a hint = the other player
+          state.setAskerRole(requester);
+          state.setActiveRole(requester === "P1" ? "P2" : "P1");
+          state.setTurnMode("give_hint");
           break;
-        case "guess":
-          appendMessage(event.payload.text, "guess", `${gameState.names[event.payload.player] || event.payload.player} • Guess`);
-          checkGuessRef.current?.(event.payload.text, gameState.mySecret, event.payload.player);
+        }
+
+        case "hint": {
+          // A hint was given
+          const { text, label, player, requester } = event.payload;
+          const playerName = state.names[player] || player;
+          appendMessage(text, "hint", `${playerName} • ${label}`);
+          state.setHintCounts((prev) => ({ ...prev, [player]: prev[player] + 1 }));
+          
+          // After giving the hint, the turn stays with the hint giver (who can now ask/guess)
+          state.setActiveRole(player);
+          state.setTurnMode("take_turn");
           break;
-        case "guessResult":
-          if (event.payload.correct) {
-            handleRoundResultRef.current?.(event.payload.player, event.payload.points, event.payload.secret);
-          } else {
-            appendMessage("Wrong guess. Try again or ask for a new hint.", "system");
-            gameState.setAskerRole(event.payload.player);
-            gameState.setActiveRole(event.payload.player);
-            gameState.setTurnMode("ask_or_guess");
+        }
+
+        // ── Arena: guess flow ─────────────────────────────────────────────────
+        case "guess": {
+          // A guess was made — the SECRET HOLDER evaluates it.
+          const { text, player: guesserRole } = event.payload;
+          const guesserName = state.names[guesserRole] || guesserRole;
+          appendMessage(text, "guess", `${guesserName} • Guess`);
+
+          // Only the secret holder (= non-guesser) evaluates
+          if (state.myRoleRef.current !== guesserRole) {
+            const correct = normalizeText(text) === normalizeText(state.mySecret);
+            if (correct) {
+              sendEvent({
+                type: "guessResult",
+                payload: {
+                  correct: true,
+                  player: guesserRole,
+                  secret: state.mySecret,
+                  wrongGuesses: state.wrongGuesses,
+                },
+              });
+            } else {
+              const updated: WrongGuesses = {
+                ...state.wrongGuesses,
+                [guesserRole]: state.wrongGuesses[guesserRole] + 1,
+              };
+              sendEvent({
+                type: "guessResult",
+                payload: {
+                  correct: false,
+                  player: guesserRole,
+                  secret: state.mySecret,
+                  wrongGuesses: updated,
+                },
+              });
+            }
           }
           break;
+        }
+
+        case "guessResult": {
+          const { correct, player: guesserRole, secret, wrongGuesses: wg } = event.payload;
+          // Always update wrong guess counts from the payload
+          state.setWrongGuesses(wg);
+
+          if (correct) {
+            if (guesserRole === state.myRoleRef.current) {
+              // I won! Reveal my secret to the loser.
+              sendEvent({
+                type: "revealSecret",
+                payload: { secret: state.mySecret, player: state.myRoleRef.current },
+              });
+            }
+            handleRoundResultRef.current?.(guesserRole, secret, wg);
+          } else {
+            appendMessage("Wrong guess! Turn passes to opponent.", "system");
+            const nextTurn: Role = guesserRole === "P1" ? "P2" : "P1";
+            state.setActiveRole(nextTurn);
+            state.setTurnMode("take_turn");
+          }
+          break;
+        }
+
+        case "revealSecret": {
+          const { secret, player } = event.payload;
+          if (player !== state.myRoleRef.current) {
+            state.setOpponentSecret(secret);
+          }
+          break;
+        }
+
+        // ── Round flow ────────────────────────────────────────────────────────
         case "roundNext":
-          gameState.setRound((value) => value + 1);
-          gameState.resetRoundState();
+          state.setRound((v) => v + 1);
+          state.resetRoundState();
+          state.setWrongGuesses({ P1: 0, P2: 0 });
           startCategoryPickRef.current?.();
           break;
+
         case "ping":
           break;
       }
     },
-    [gameState, appendMessage, startTimer],
+    [appendMessage, sendEvent, setScreen],
   );
 
-  const isGuessCorrect = useCallback((guess: string, secret: string) => {
-    const strictGuess = normalizeGuessText(guess);
-    const strictSecret = normalizeGuessText(secret);
-    if (!strictGuess || !strictSecret) return false;
-
-    if (strictGuess === strictSecret) return true;
-
-    const numericGuess = Number(guess.trim());
-    const numericSecret = Number(secret.trim());
-    if (!Number.isNaN(numericGuess) && !Number.isNaN(numericSecret)) {
-      return numericGuess === numericSecret;
-    }
-
-    return false;
-  }, []);
-
-  const checkGuess = useCallback(
-    (guess: string, secret: string, guesserRole: Role) => {
-      if (checkingRef.current) return;
-      checkingRef.current = true;
-
-      appendMessage("Checking answer…", "system");
-
-      const correct = isGuessCorrect(guess, secret);
-      const points = correct ? Math.max(10, gameState.timerSeconds * 3 + (gameState.myMaxHints - gameState.hintCount + 1) * 5) : 0;
-
-      sendEvent({
-        type: "guessResult",
-        payload: {
-          correct,
-          player: guesserRole,
-          secret,
-          points,
-        },
-      });
-
-      if (correct) {
-        handleRoundResultRef.current?.(guesserRole, points, secret);
-      } else {
-        appendMessage("Wrong guess. Try again or ask for a new hint.", "system");
-        gameState.setAskerRole(guesserRole);
-        gameState.setActiveRole(guesserRole);
-        gameState.setTurnMode("ask_or_guess");
-      }
-
-      checkingRef.current = false;
-    },
-    [gameState, appendMessage, isGuessCorrect, sendEvent],
-  );
-
+  // ─── Round result ─────────────────────────────────────────────────────────
   const handleRoundResult = useCallback(
-    (winnerRole: Role, points: number, secret: string) => {
-      clearTimer();
-      const winnerName = gameState.names[winnerRole] || winnerRole;
-
-      appendMessage(`🎉 ${winnerName} guessed correctly! +${points} pts`, "correct");
-      appendMessage(`✅ Correct! The secret was "${secret}"`, "correct");
-
-      gameState.setScores((previous) => ({ ...previous, [winnerRole]: previous[winnerRole] + points }));
-
-      window.setTimeout(() => {
-        const again = window.confirm(`${winnerName} won this round (+${points} pts)!\n\nPlay another round?`);
-        if (again) {
-          sendEvent({ type: "roundNext" });
-          gameState.setRound((value) => value + 1);
-          gameState.resetRoundState();
-          startCategoryPickRef.current?.();
-          return;
-        }
-
-        setScreen("win");
-        if (winnerRole === gameState.myRole) {
-          gameState.setShowConfetti(true);
-          window.setTimeout(() => gameState.setShowConfetti(false), 3000);
-        }
-      }, 800);
+    (winnerRole: Role, revealedSecret: string, wg: WrongGuesses) => {
+      const state = gameStateRef.current;
+      const winnerName = state.names[winnerRole] || winnerRole;
+      appendMessage(`🎉 ${winnerName} guessed correctly!`, "correct");
+      appendMessage(`✅ The secret was "${revealedSecret}"`, "correct");
+      state.setWrongGuesses(wg);
+      state.setWinnerRole(winnerRole);
+      
+      if (state.myRoleRef.current === winnerRole) {
+        state.setOpponentSecret(revealedSecret);
+      }
+      window.setTimeout(() => setScreen("win"), 800);
     },
-    [gameState, appendMessage, clearTimer, sendEvent, setScreen],
+    [appendMessage, setScreen],
   );
 
+  // ─── Screen transitions ───────────────────────────────────────────────────
   const startCategoryPick = useCallback(() => {
     gameState.setIReady(false);
     gameState.setOpponentReady(false);
@@ -195,32 +210,35 @@ export function MindMatchGameConnected() {
     setScreen("category");
   }, [gameState, setScreen]);
 
-  const startSecretPick = useCallback(() => {
-    gameState.setIReady(false);
-    gameState.setOpponentReady(false);
-    gameState.setSecretInput("");
-    gameState.setMyHintsLeft(gameState.myMaxHints);
-    gameState.setHintCount(0);
-    setScreen("secret");
-  }, [gameState, setScreen]);
-
   const startArena = useCallback(() => {
     gameState.setChatMessages([]);
     gameState.setAskerRole("P1");
     gameState.setActiveRole("P1");
-    gameState.setTurnMode("ask_or_guess");
-    appendMessage("Game started. P1 can ask for hint or guess.", "system");
+    gameState.setTurnMode("take_turn");
+    appendMessage("Game started! P1 goes first.", "system");
     setScreen("arena");
   }, [gameState, appendMessage, setScreen]);
 
-  // Update refs after callbacks are defined
+  // Keep refs current
   useEffect(() => {
-    checkGuessRef.current = checkGuess;
     handleRoundResultRef.current = handleRoundResult;
     startCategoryPickRef.current = startCategoryPick;
-  }, [checkGuess, handleRoundResult, startCategoryPick]);
+  }, [handleRoundResult, startCategoryPick]);
 
-  // Socket connection handler
+  // ─── Category → Secret transition ─────────────────────────────────────────
+  useEffect(() => {
+    if (screen === "category" && gameState.iReady && gameState.opponentReady) {
+      const t = window.setTimeout(() => {
+        gameState.setIReady(false);
+        gameState.setOpponentReady(false);
+        gameState.setSecretInput("");
+        setScreen("secret");
+      }, 450);
+      return () => window.clearTimeout(t);
+    }
+  }, [gameState.iReady, gameState.opponentReady, screen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── WS connection ────────────────────────────────────────────────────────
   const handleConnect = useCallback(
     (code: string, playerName: string) => {
       autoStartScheduledRef.current = false;
@@ -231,40 +249,35 @@ export function MindMatchGameConnected() {
         playerName,
         (roomCode, role, players) => {
           gameState.setRoomCode(roomCode);
-          gameState.setMyRole(role);
+          gameState.setMyRole(role); // updates both state + ref
           const playerMap: Record<Role, string> = { P1: "", P2: "" };
-          for (const player of players) {
-            playerMap[player.role] = player.name;
-          }
+          for (const p of players) playerMap[p.role] = p.name;
           gameState.setNames(playerMap);
         },
         (players) => {
           const playerMap: Record<Role, string> = { P1: "", P2: "" };
-          for (const player of players) {
-            playerMap[player.role] = player.name;
-          }
+          for (const p of players) playerMap[p.role] = p.name;
           gameState.setNames(playerMap);
 
+          // P1: room-created → waiting → category
           if (screenRef.current === "room-created" && players.length === 2 && !autoStartScheduledRef.current) {
             autoStartScheduledRef.current = true;
-            window.setTimeout(() => setScreen("waiting"), 300);
+            window.setTimeout(() => {
+              setScreen("waiting");
+              window.setTimeout(() => startCategoryPick(), 600);
+            }, 300);
           }
 
+          // P2: already on waiting → category
           if (screenRef.current === "waiting" && players.length === 2 && !autoStartScheduledRef.current) {
             autoStartScheduledRef.current = true;
             window.setTimeout(() => startCategoryPick(), 600);
           }
         },
-        (name) => {
-          toast(`${name} joined`, 1800);
-        },
+        (name) => { toast(`${name} joined`, 1800); },
         handleGameEvent,
-        (message) => {
-          toast(message, 3000);
-        },
-        () => {
-          toast("Connected", 1500);
-        },
+        (message) => { toast(message, 3000); },
+        () => { toast("Connected", 1500); },
         (shouldNotify) => {
           if (shouldNotify && screenRef.current !== "name" && screenRef.current !== "room-choice" && screenRef.current !== "join-input") {
             toast("Disconnected", 2200);
@@ -275,30 +288,25 @@ export function MindMatchGameConnected() {
     [gameState, closeSocket, connectSocket, handleGameEvent, toast, setScreen, startCategoryPick, screenRef],
   );
 
-  const createRoom = useCallback(
-    (name: string) => {
-      gameState.setMyName(name);
-      gameState.setNames({ P1: name, P2: "" });
-      gameState.setMyRole("P1");
-      const code = generateCode();
-      gameState.setRoomCode(code);
-      handleConnect(code, name);
-      setScreen("room-created");
-    },
-    [gameState, handleConnect, setScreen],
-  );
+  // ─── Room actions ─────────────────────────────────────────────────────────
+  const createRoom = useCallback((name: string) => {
+    gameState.setMyName(name);
+    gameState.setNames({ P1: name, P2: "" });
+    gameState.setMyRole("P1");
+    const code = generateCode();
+    gameState.setRoomCode(code);
+    handleConnect(code, name);
+    setScreen("room-created");
+  }, [gameState, handleConnect, setScreen]);
 
-  const joinRoom = useCallback(
-    (name: string, code: string) => {
-      gameState.setMyName(name);
-      gameState.setMyRole("P2");
-      gameState.setNames((previous) => ({ ...previous, P2: name }));
-      gameState.setRoomCode(code);
-      handleConnect(code, name);
-      setScreen("waiting");
-    },
-    [gameState, handleConnect, setScreen],
-  );
+  const joinRoom = useCallback((name: string, code: string) => {
+    gameState.setMyName(name);
+    gameState.setMyRole("P2");
+    gameState.setNames((prev) => ({ ...prev, P2: name }));
+    gameState.setRoomCode(code);
+    handleConnect(code, name);
+    setScreen("waiting");
+  }, [gameState, handleConnect, setScreen]);
 
   const goBack = useCallback(() => {
     autoStartScheduledRef.current = false;
@@ -309,123 +317,104 @@ export function MindMatchGameConnected() {
   const goHome = useCallback(() => {
     autoStartScheduledRef.current = false;
     closeSocket();
-    clearTimer();
     gameState.resetGameState();
     gameState.setPlayerNameInput("");
     gameState.setJoinCodeInput("");
     setScreen("name");
-  }, [gameState, clearTimer, closeSocket, setScreen]);
+  }, [gameState, closeSocket, setScreen]);
 
-  const pickCategory = useCallback(
-    (category: CategoryKey) => {
-      gameState.setMyCategory(category);
-      gameState.setIReady(true);
-      sendEvent({ type: "categoryChosen", payload: { category } });
-    },
-    [gameState, sendEvent],
-  );
+  // ─── Category pick (P1 only) ──────────────────────────────────────────────
+  const pickCategory = useCallback((category: CategoryKey) => {
+    gameState.setMyCategory(category);
+    gameState.setIReady(true);
+    gameState.setOpponentReady(true); // P1 self-confirms; P2 confirms via event
+    sendEvent({ type: "categoryChosen", payload: { category } });
+  }, [gameState, sendEvent]);
 
-  useEffect(() => {
-    if (screen === "category" && gameState.iReady && gameState.opponentReady) {
-      const timeout = window.setTimeout(() => startSecretPick(), 450);
-      return () => window.clearTimeout(timeout);
-    }
-  }, [gameState.iReady, gameState.opponentReady, screen, startSecretPick]);
-
+  // ─── Secret phase actions ─────────────────────────────────────────────────
   const confirmSecret = useCallback(() => {
     const value = gameState.secretInput.trim();
-    if (!value) {
-      toast("Type your secret first");
-      return;
-    }
-
+    if (!value) { toast("Type your secret first"); return; }
     gameState.setMySecret(value);
     gameState.setIReady(true);
     sendEvent({ type: "secretReady", payload: { secret: value } });
   }, [gameState, sendEvent, toast]);
 
-  useEffect(() => {
-    if (screen === "secret" && gameState.iReady && gameState.opponentReady) {
-      const timeout = window.setTimeout(() => startArena(), 450);
-      return () => window.clearTimeout(timeout);
-    }
-  }, [gameState.iReady, gameState.opponentReady, screen, startArena]);
+  const startGame = useCallback(() => {
+    // Only P1 / owner calls this
+    sendEvent({ type: "gameStart" });
+    startArena();
+  }, [sendEvent, startArena]);
 
+  // ─── Arena actions ────────────────────────────────────────────────────────
   const sendHint = useCallback(() => {
     const value = gameState.messageInput.trim();
     if (!value) return;
-    if (gameState.activeRole !== gameState.myRole) {
-      toast("Not your turn");
+
+    const state = gameStateRef.current;
+
+    if (state.turnMode === "take_turn" && state.activeRole === state.myRoleRef.current) {
+      // Asking for a hint
+      state.setMessageInput("");
+      const myName = state.names[state.myRoleRef.current] || state.myRoleRef.current;
+      appendMessage(value, "system", `${myName} • Asked for hint`);
+      state.setAskerRole(state.myRoleRef.current);
+      const opponent: Role = state.myRoleRef.current === "P1" ? "P2" : "P1";
+      state.setActiveRole(opponent);
+      state.setTurnMode("give_hint");
+      sendEvent({ type: "requestHint", payload: { text: value, requester: state.myRoleRef.current } });
       return;
     }
 
-    if (gameState.turnMode === "ask_or_guess") {
-      gameState.setMessageInput("");
-      appendMessage(value, "system", `${gameState.names[gameState.myRole] || gameState.myRole} • Asked for hint`);
-      gameState.setAskerRole(gameState.myRole);
-      gameState.setActiveRole(gameState.myRole === "P1" ? "P2" : "P1");
-      gameState.setTurnMode("provide_hint");
-      sendEvent({ type: "requestHint", payload: { text: value, requester: gameState.myRole } });
-      return;
+    if (state.turnMode === "give_hint" && state.activeRole === state.myRoleRef.current) {
+      // Giving a hint
+      const nextCount = (state.hintCounts[state.myRoleRef.current] ?? 0) + 1;
+      state.setHintCounts((prev) => ({ ...prev, [state.myRoleRef.current]: nextCount }));
+      state.setMessageInput("");
+      const myName = state.names[state.myRoleRef.current] || state.myRoleRef.current;
+      appendMessage(value, "hint", `${myName} • Hint #${nextCount}`);
+
+      // After giving hint, turn stays with me (the person who just gave the hint)
+      state.setActiveRole(state.myRoleRef.current);
+      state.setTurnMode("take_turn");
+
+      sendEvent({
+        type: "hint",
+        payload: {
+          text: value,
+          label: `Hint #${nextCount}`,
+          player: state.myRoleRef.current,
+          requester: state.askerRole,
+        },
+      });
     }
-
-    if (gameState.turnMode !== "provide_hint") {
-      toast("You can ask for hint or guess now");
-      return;
-    }
-
-    if (gameState.myHintsLeft <= 0) {
-      toast("No hints left");
-      return;
-    }
-
-    const nextHintCount = gameState.hintCount + 1;
-    gameState.setHintCount(nextHintCount);
-    gameState.setMyHintsLeft((previous) => previous - 1);
-    gameState.setMessageInput("");
-
-    appendMessage(value, "hint", `${gameState.names[gameState.myRole] || gameState.myRole} • Hint #${nextHintCount}`);
-    gameState.setActiveRole(gameState.askerRole);
-    gameState.setTurnMode("guess_after_hint");
-    sendEvent({
-      type: "hint",
-      payload: {
-        text: value,
-        label: `Hint #${nextHintCount}`,
-        player: gameState.myRole,
-        requester: gameState.askerRole,
-      },
-    });
-  }, [gameState, appendMessage, sendEvent, toast]);
+  }, [gameState, appendMessage, sendEvent]);
 
   const sendGuess = useCallback(() => {
     const value = gameState.messageInput.trim();
     if (!value) return;
-    if (gameState.activeRole !== gameState.myRole || (gameState.turnMode !== "ask_or_guess" && gameState.turnMode !== "guess_after_hint")) {
+    if (gameState.turnMode !== "take_turn" || gameState.activeRole !== gameState.myRoleRef.current) {
       toast("Not your turn to guess");
       return;
     }
-
-    clearTimer();
     gameState.setMessageInput("");
-    appendMessage(value, "guess", `${gameState.names[gameState.myRole] || gameState.myRole} • Guess`);
-    sendEvent({ type: "guess", payload: { text: value, player: gameState.myRole } });
-  }, [gameState, appendMessage, clearTimer, sendEvent, toast]);
+    const myName = gameState.names[gameState.myRoleRef.current] || gameState.myRoleRef.current;
+    appendMessage(value, "guess", `${myName} • Guess`);
+    sendEvent({ type: "guess", payload: { text: value, player: gameState.myRoleRef.current } });
+  }, [gameState, appendMessage, sendEvent, toast]);
 
+  // ─── Play again (owner only) ──────────────────────────────────────────────
   const playAgain = useCallback(() => {
-    gameState.setScores({ P1: 0, P2: 0 });
-    gameState.setRound(1);
-    gameState.setShowConfetti(false);
+    gameState.setRound((v) => v + 1);
+    gameState.setWrongGuesses({ P1: 0, P2: 0 });
     gameState.resetRoundState();
+    sendEvent({ type: "roundNext" });
     startCategoryPick();
-  }, [gameState, startCategoryPick]);
+  }, [gameState, sendEvent, startCategoryPick]);
 
   useEffect(() => {
-    return () => {
-      closeSocket();
-      clearTimer();
-    };
-  }, [clearTimer, closeSocket]);
+    return () => { closeSocket(); };
+  }, [closeSocket]);
 
   return (
     <div className="mindmatch-app">
@@ -457,29 +446,26 @@ export function MindMatchGameConnected() {
         roomCode={gameState.roomCode}
         names={gameState.names}
         myRole={gameState.myRole}
-        myName={gameState.myName}
-        scores={gameState.scores}
-        round={gameState.round}
+          myName={gameState.myName}
+          winnerRole={gameState.winnerRole}
+          wrongGuesses={gameState.wrongGuesses}
+          round={gameState.round}
         myCategory={gameState.myCategory}
         mySecret={gameState.mySecret}
+        opponentSecret={gameState.opponentSecret}
         secretInput={gameState.secretInput}
         setSecretInput={gameState.setSecretInput}
-        myMaxHints={gameState.myMaxHints}
-        myHintsLeft={gameState.myHintsLeft}
+        iConfirmed={gameState.iReady}
+        opponentConfirmed={gameState.opponentReady}
+        hintCounts={gameState.hintCounts}
         chatMessages={gameState.chatMessages}
         messageInput={gameState.messageInput}
         setMessageInput={gameState.setMessageInput}
-        timerSeconds={gameState.timerSeconds}
         activeRole={gameState.activeRole}
         turnMode={gameState.turnMode}
-        iReady={gameState.iReady}
-        canSendHint={gameState.myHintsLeft > 0}
         onPickCategory={pickCategory}
         onConfirmSecret={confirmSecret}
-        onSetMaxHints={(count) => {
-          gameState.setMyMaxHints(count);
-          gameState.setMyHintsLeft(count);
-        }}
+        onStartGame={startGame}
         onSendHint={sendHint}
         onSendGuess={sendGuess}
         onPlayAgain={playAgain}

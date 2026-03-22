@@ -59,7 +59,15 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
-        <ClientThemeProvider>{children}</ClientThemeProvider>
+        <ClientThemeProvider>
+          {children}
+          {/* Global Footer Attribution */}
+          <div className="fixed bottom-4 left-0 right-0 z-50 flex justify-center pointer-events-none">
+            <div className="text-[0.65rem] tracking-[2px] uppercase text-[var(--muted)] bg-white/60 dark:bg-black/60 px-4 py-1.5 rounded-full backdrop-blur-md border border-[var(--border)] pointer-events-auto">
+              Made by <a href="https://x.com/devlprnitish" target="_blank" rel="noopener noreferrer" className="text-[var(--cyan)] font-bold hover:underline transition-all hover:text-[var(--pink)]">Nitish</a>
+            </div>
+          </div>
+        </ClientThemeProvider>
       </body>
     </html>
   );

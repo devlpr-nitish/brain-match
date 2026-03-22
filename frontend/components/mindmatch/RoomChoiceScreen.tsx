@@ -16,8 +16,7 @@ export function RoomChoiceScreen({ playerName, onCreateRoom, onJoinRoom, onBack 
         className="fixed inset-0 pointer-events-none z-0"
         style={{ backgroundImage: "linear-gradient(var(--grid-color) 1px,transparent 1px),linear-gradient(90deg,var(--grid-color) 1px,transparent 1px)", backgroundSize: "60px 60px" }}
       />
-
-      <div className="relative z-10 anim-slide-up w-full flex flex-col gap-5" style={{ maxWidth: "380px", padding: "1.5rem" }}>
+      <div className="relative z-10 anim-slide-up w-full max-w-[400px] flex flex-col gap-5 px-4 sm:px-6 py-8 mx-auto">
 
         <div className="text-center mb-2">
           <div
@@ -30,8 +29,8 @@ export function RoomChoiceScreen({ playerName, onCreateRoom, onJoinRoom, onBack 
         </div>
 
         <div
-          className="bg-white dark:bg-[#0f0f0f] border border-[var(--border)] rounded-2xl flex flex-col gap-4"
-          style={{ padding: "2rem", boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}
+          className="bg-white dark:bg-[#0f0f0f] border border-[var(--border)] rounded-2xl flex flex-col gap-4 p-6 sm:p-8"
+          style={{ boxShadow: "0 4px 24px rgba(0,0,0,0.08)" }}
         >
           <div className="flex items-center gap-2">
             <Swords size={20} className="text-[var(--pink)]" />

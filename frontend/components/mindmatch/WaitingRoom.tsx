@@ -18,8 +18,7 @@ export function WaitingRoom({ roomCode, slot1Name, slot2Name, slot2Filled, waiti
         className="fixed inset-0 pointer-events-none z-0"
         style={{ backgroundImage: "linear-gradient(var(--grid-color) 1px,transparent 1px),linear-gradient(90deg,var(--grid-color) 1px,transparent 1px)", backgroundSize: "60px 60px" }}
       />
-
-      <div className="relative z-10 anim-slide-up flex flex-col items-center gap-6 w-full" style={{ maxWidth: "380px", padding: "1.5rem" }}>
+      <div className="relative z-10 anim-slide-up flex flex-col items-center gap-6 w-full max-w-[400px] px-4 sm:px-6 py-8 mx-auto">
 
         <div className="flex items-center gap-2 text-[0.65rem] tracking-[3px] uppercase text-[var(--muted)]">
           <Wifi size={14} className="text-[var(--green)]" /> Room Code
