@@ -111,15 +111,28 @@ export function SecretPick({
             {bothReady && isOwner && (
               <button
                 onClick={onStartGame}
-                className="flex items-center gap-2 rounded-xl font-bold text-sm tracking-widest uppercase transition-all hover:-translate-y-px hover:brightness-110"
-                style={{
-                  padding: "0.75rem 2.5rem",
-                  background: "linear-gradient(135deg, var(--cyan), var(--purple))",
-                  color: "white",
-                  boxShadow: "0 0 20px rgba(0,229,255,0.35)",
-                }}
+                className="relative flex items-center gap-2 rounded-xl px-10 py-3 font-bold text-sm tracking-widest uppercase
+                  text-white transition-all overflow-hidden
+                  bg-[linear-gradient(135deg,var(--cyan),var(--purple))]
+                  shadow-[0_0_22px_rgba(0,229,255,0.25)]
+                  border border-white/15 hover:-translate-y-px hover:brightness-110
+                  dark:bg-[linear-gradient(135deg,var(--cyan),var(--pink))]
+                  dark:shadow-[0_0_30px_rgba(0,229,255,0.45)]
+                  dark:border-white/[0.06]"
               >
-                <Play size={16} /> Start Game
+                {/* Glare + neon bloom */}
+                <span
+                  aria-hidden
+                  className="absolute inset-0 opacity-30 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.55),transparent_60%)]"
+                />
+                <span
+                  aria-hidden
+                  className="absolute -inset-12 opacity-40 bg-[radial-gradient(circle_at_center,rgba(0,229,255,0.35),transparent_62%)] blur-[18px]
+                    dark:opacity-30"
+                />
+                <span className="relative flex items-center gap-2">
+                  <Play size={16} /> Start Game
+                </span>
               </button>
             )}
 

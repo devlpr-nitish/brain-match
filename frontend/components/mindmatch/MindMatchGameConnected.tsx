@@ -28,6 +28,8 @@ export function MindMatchGameConnected() {
 
   const chatIdRef = useRef(1);
   const autoStartScheduledRef = useRef(false);
+  const autoJoinFromLinkRef = useRef(false);
+  const autoJoinedRef = useRef(false);
   // Ref-based callbacks to avoid stale closures inside WS handlers
   const handleRoundResultRef = useRef<((winnerRole: Role, opponentSec: string, wg: WrongGuesses) => void) | null>(null);
   const startCategoryPickRef = useRef<(() => void) | null>(null);
@@ -37,7 +39,13 @@ export function MindMatchGameConnected() {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
     const roomParam = params.get("room");
-    if (roomParam) gameState.setRoomCode(roomParam.toUpperCase());
+    if (!roomParam) return;
+    const normalized = roomParam.toUpperCase();
+    autoJoinFromLinkRef.current = true;
+    // Prefill join code so we can skip the "enter code" step.
+    gameState.setJoinCodeInput(normalized);
+    // Also store in roomCode (used by UI during the game flow).
+    gameState.setRoomCode(normalized);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const appendMessage = useCallback((text: string, type: "hint" | "guess" | "system" | "correct", label?: string) => {
@@ -416,6 +424,18 @@ export function MindMatchGameConnected() {
     return () => { closeSocket(); };
   }, [closeSocket]);
 
+  // If the user arrived via `?room=XXXX`, auto-join as soon as they have entered a name.
+  useEffect(() => {
+    if (!autoJoinFromLinkRef.current) return;
+    if (autoJoinedRef.current) return;
+    if (screen !== "join-input") return;
+    if (!gameState.playerNameInput) return;
+    if (gameState.joinCodeInput.length !== 4) return;
+
+    autoJoinedRef.current = true;
+    joinRoom(gameState.playerNameInput, gameState.joinCodeInput);
+  }, [gameState.playerNameInput, gameState.joinCodeInput, joinRoom, screen]);
+
   return (
     <div className="mindmatch-app">
       <ThemeToggle />
@@ -439,6 +459,7 @@ export function MindMatchGameConnected() {
         setScreen={setScreen}
         onCreateRoom={createRoom}
         onJoinRoom={joinRoom}
+        // When arriving via link, skip room-choice after name is submitted.
       />
 
       <GameFlowContainer

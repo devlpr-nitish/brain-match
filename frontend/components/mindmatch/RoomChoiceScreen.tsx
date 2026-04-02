@@ -43,7 +43,7 @@ export function RoomChoiceScreen({ playerName, onCreateRoom, onJoinRoom, onBack 
 
           <button
             onClick={onCreateRoom}
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm tracking-widest uppercase transition-all
+            className="flex items-center justify-center gap-2 w-full py-2 px-2 rounded-xl font-bold text-sm tracking-widest uppercase transition-all
               bg-[var(--cyan)] text-white dark:text-black
               dark:[box-shadow:0_0_16px_rgba(0,229,255,0.4)]
               hover:brightness-110 hover:-translate-y-px"
@@ -57,7 +57,7 @@ export function RoomChoiceScreen({ playerName, onCreateRoom, onJoinRoom, onBack 
 
           <button
             onClick={onJoinRoom}
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm tracking-widest uppercase transition-all
+            className="flex items-center justify-center gap-2 w-full py-2 px-2 rounded-xl font-bold text-sm tracking-widest uppercase transition-all
               bg-transparent border border-[var(--pink)] text-[var(--pink)]
               hover:bg-[var(--pink)]/10 hover:-translate-y-px"
           >

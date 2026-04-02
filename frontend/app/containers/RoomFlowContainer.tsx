@@ -46,7 +46,10 @@ export function RoomFlowContainer({
           nameInput={playerNameInput}
           setNameInput={setPlayerNameInput}
           onContinue={() => {
-            setScreen("room-choice");
+            // If the user arrived via `?room=XXXX`, the join code is already prefilled.
+            // Skip the room-choice screen and go straight to joining.
+            if (joinCodeInput.length === 4) setScreen("join-input");
+            else setScreen("room-choice");
           }}
         />
       ) : null}

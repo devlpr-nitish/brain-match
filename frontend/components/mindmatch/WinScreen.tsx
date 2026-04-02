@@ -52,11 +52,23 @@ export function WinScreen({ myRole, myName, names, wrongGuesses, mySecret, oppon
         </div>
 
         {/* Title */}
-        <div
-          className="font-[var(--font-bebas-neue)] tracking-widest text-[var(--yellow)]"
-          style={{ fontSize: "clamp(3rem,10vw,5.5rem)", textShadow: iWon ? "0 0 20px rgba(255,215,0,0.6)" : "none" }}
-        >
-          {iWon ? "🏆 You Win!" : "💀 You Lose!"}
+        <div className="relative">
+          <span
+            aria-hidden
+            className="absolute -inset-6 rounded-[28px] blur-[18px] opacity-60
+              bg-[radial-gradient(circle_at_top,rgba(255,215,0,0.35),transparent_60%)]
+              dark:bg-[radial-gradient(circle_at_top,rgba(0,229,255,0.18),transparent_60%)]"
+          />
+          <div
+            className="relative font-[var(--font-bebas-neue)] tracking-widest text-transparent bg-clip-text
+              bg-[linear-gradient(135deg,var(--yellow),var(--cyan))] dark:bg-[linear-gradient(135deg,var(--yellow),var(--cyan))]"
+            style={{
+              fontSize: "clamp(3rem,10vw,5.5rem)",
+              textShadow: iWon ? "0 0 26px rgba(255,215,0,0.35), 0 0 52px rgba(0,229,255,0.18)" : "none",
+            }}
+          >
+            {iWon ? "YOU WIN" : "YOU LOSE"}
+          </div>
         </div>
 
         <p className="text-base text-[var(--muted)] text-center -mt-2">

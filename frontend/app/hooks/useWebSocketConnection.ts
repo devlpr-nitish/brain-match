@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { ClientGameEvent, Role, ServerEnvelope } from "../types/types";
 
-const wsBase = process.env.NEXT_PUBLIC_WS_BASE ?? "ws://localhost:8080/ws";
+const wsBase = process.env.NEXT_PUBLIC_WS_BASE ?? "ws://192.168.1.6:8080/ws";
 
 export function useWebSocketConnection() {
   const socketRef = useRef<WebSocket | null>(null);
