@@ -23,7 +23,25 @@ const bebasNeue = Bebas_Neue({
   subsets: ["latin"],
 });
 
+function metadataBaseUrl(): URL {
+  if (process.env.NEXT_PUBLIC_SITE_URL) {
+    return new URL(process.env.NEXT_PUBLIC_SITE_URL);
+  }
+  if (process.env.VERCEL_URL) {
+    return new URL(`https://${process.env.VERCEL_URL}`);
+  }
+  return new URL("http://localhost:3000");
+}
+
+const seoImage = {
+  url: "/seo_image.png",
+  width: 2940,
+  height: 1586,
+  alt: "Brain Match — multiplayer hint duel landing screen",
+} as const;
+
 export const metadata: Metadata = {
+  metadataBase: metadataBaseUrl(),
   title: {
     default: "Brain Match — Multiplayer Hint & Guess Game",
     template: "%s | Brain Match",
@@ -36,11 +54,13 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     siteName: "Brain Match",
+    images: [seoImage],
   },
   twitter: {
     card: "summary_large_image",
     title: "Brain Match — Multiplayer Hint & Guess Game",
     description: "Realtime two-player hint-and-guess game built with Next.js + WebSockets.",
+    images: [seoImage],
   },
   alternates: {
     canonical: "/",
