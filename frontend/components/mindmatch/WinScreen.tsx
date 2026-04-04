@@ -63,7 +63,7 @@ export function WinScreen({ myRole, myName, names, wrongGuesses, mySecret, oppon
             className="relative font-[var(--font-bebas-neue)] tracking-widest text-transparent bg-clip-text
               bg-[linear-gradient(135deg,var(--yellow),var(--cyan))] dark:bg-[linear-gradient(135deg,var(--yellow),var(--cyan))]"
             style={{
-              fontSize: "clamp(3rem,10vw,5.5rem)",
+              fontSize: "clamp(2rem,10vw,4.5rem)",
               textShadow: iWon ? "0 0 26px rgba(255,215,0,0.35), 0 0 52px rgba(0,229,255,0.18)" : "none",
             }}
           >

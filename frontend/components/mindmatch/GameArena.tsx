@@ -110,7 +110,7 @@ export function GameArena({
       </div>
 
       {/* Chat area */}
-      <div className="flex-1 flex flex-col justify-center mx-auto w-full max-w-[720px] px-3 sm:px-5 py-4">
+      <div className="flex-1 flex flex-col justify-start mx-auto w-full max-w-[720px] px-3 sm:px-5 py-4">
 
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2 font-[var(--font-bebas-neue)] text-2xl tracking-[3px] text-[var(--cyan)]">

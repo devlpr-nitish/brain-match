@@ -2,7 +2,8 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import Image from "next/image";
-import { Swords, Hash, Box, Star, Film, ArrowRight, Zap, Shield, Trophy } from "lucide-react";
+import Link from "next/link";
+import { Swords, Hash, Box, Star, Film, ArrowRight, Zap, Shield, Trophy, ScrollText } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 type NameScreenProps = {
@@ -48,6 +49,13 @@ export function NameScreen({ nameInput, setNameInput, onContinue, isJoining }: N
 
         {/* ── LEFT: Hero ── */}
         <div className="relative flex-1 flex flex-col items-center justify-center py-16 px-8 md:px-12 lg:px-16 md:border-r border-[var(--border)]/80 dark:border-[var(--border)]/60">
+          <Link
+            href="/rules"
+            className="absolute top-6 right-6 z-20 inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[var(--surface)]/70 px-3 py-1.5 text-[0.65rem] font-medium tracking-[0.15em] uppercase text-[var(--muted)] backdrop-blur-sm transition-colors hover:border-[var(--cyan)]/40 hover:text-[var(--cyan)] md:top-8 md:right-8 lg:right-12"
+          >
+            <ScrollText size={14} className="shrink-0 opacity-80" aria-hidden />
+            Rules
+          </Link>
           {/* Ambient glow */}
           <div
             className="pointer-events-none absolute -left-24 top-1/4 h-[min(480px,80vw)] w-[min(480px,80vw)] rounded-full blur-[100px] opacity-60 dark:opacity-100
@@ -93,7 +101,7 @@ export function NameScreen({ nameInput, setNameInput, onContinue, isJoining }: N
             </p>
 
             {/* Feature bullets */}
-            <div className="anim-slide-up flex flex-col gap-2.5 [animation-delay:180ms]">
+            <div className="anim-slide-up flex flex-col justify-center gap-2.5 [animation-delay:180ms]">
               {highlights.map(({ icon: Icon, text }) => (
                 <div
                   key={text}
